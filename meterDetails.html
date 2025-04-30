@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meter Details - EMS Dashboard</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f6f9;
+        }
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .widget {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .dark-mode {
+            background-color: #0A1F36;
+            color: rgba(255, 255, 255, 0.87);
+        }
+        .dark-mode .widget {
+            background: #0D2743;
+            color: rgba(255, 255, 255, 0.87);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800" id="meterTitle">Meter Details</h1>
+            <div class="flex space-x-4">
+                <a href="home.html" class="p-2 bg-blue-500 text-white rounded hover:bg-blue-600">Back to Dashboard</a>
+                <button id="darkModeToggle" class="p-2 rounded-full bg-gray-200 dark:bg-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Time-Series Charts -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Voltage Chart (Line) -->
+            <div class="widget" id="voltageWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Voltage Comparison (Line) (V)</h2>
+                <canvas id="voltageChart" height="100"></canvas>
+            </div>
+            <!-- Power Chart (Bar) -->
+            <div class="widget" id="powerWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Power Comparison (Bar) (W)</h2>
+                <canvas id="powerChart" height="100"></canvas>
+            </div>
+            <!-- Frequency Chart (Stacked Bar) -->
+            <div class="widget" id="frequencyWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Frequency Comparison (Stacked Bar) (Hz)</h2>
+                <canvas id="frequencyChart" height="100"></canvas>
+            </div>
+            <!-- Amperage Chart (Line) -->
+            <div class="widget" id="amperageWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Amperage Comparison (Line) (A)</h2>
+                <canvas id="amperageChart" height="100"></canvas>
+            </div>
+        </div>
+
+        <!-- Pie Charts for Metric Distribution -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Voltage Pie Chart -->
+            <div class="widget" id="voltagePieWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Voltage Distribution</h2>
+                <div class="flex justify-center">
+                    <canvas id="voltagePieChart" class="w-64 h-64 md:w-80 md:h-80"></canvas>
+                </div>
+            </div>
+            <!-- Power Pie Chart -->
+            <div class="widget" id="powerPieWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Power Distribution</h2>
+                <div class="flex justify-center">
+                    <canvas id="powerPieChart" class="w-64 h-64 md:w-80 md:h-80"></canvas>
+                </div>
+            </div>
+            <!-- Frequency Pie Chart -->
+            <div class="widget" id="frequencyPieWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Frequency Distribution</h2>
+                <div class="flex justify-center">
+                    <canvas id="frequencyPieChart" class="w-64 h-64 md:w-80 md:h-80"></canvas>
+                </div>
+            </div>
+            <!-- Amperage Pie Chart -->
+            <div class="widget" id="amperagePieWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Amperage Distribution</h2>
+                <div class="flex justify-center">
+                    <canvas id="amperagePieChart" class="w-64 h-64 md:w-80 md:h-80"></canvas>
+                </div>
+            </div>
+            <!-- Energy Pie Chart -->
+            <div class="widget" id="energyPieWidget">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Energy Consumption Contribution</h2>
+                <div class="flex justify-center">
+                    <canvas id="energyPieChart" class="w-64 h-64 md:w-80 md:h-80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // Sample Data (same as index.html)
+        const sampleData = {
+            energyMeters: [
+                {
+                    id: "meter1",
+                    name: "Meter 1",
+                    label: "Main Building",
+                    data: {
+                        voltage1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 230.5 },
+                            { timestamp: "2025-04-28T09:00:00", value: 231.2 },
+                            { timestamp: "2025-04-28T10:00:00", value: 229.8 },
+                            { timestamp: "2025-04-28T11:00:00", value: 232.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 230.1 },
+                            { timestamp: "2025-04-28T13:00:00", value: 228.9 },
+                            { timestamp: "2025-04-28T14:00:00", value: 231.5 },
+                        ],
+                        voltage2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 229.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 230.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 228.7 },
+                            { timestamp: "2025-04-28T11:00:00", value: 231.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 229.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 227.8 },
+                            { timestamp: "2025-04-28T14:00:00", value: 230.2 },
+                        ],
+                        voltage3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 231.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 232.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 230.5 },
+                            { timestamp: "2025-04-28T11:00:00", value: 233.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 231.5 },
+                            { timestamp: "2025-04-28T13:00:00", value: 229.5 },
+                            { timestamp: "2025-04-28T14:00:00", value: 232.0 },
+                        ],
+                        voltage4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 228.5 },
+                            { timestamp: "2025-04-28T09:00:00", value: 229.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 227.8 },
+                            { timestamp: "2025-04-28T11:00:00", value: 230.5 },
+                            { timestamp: "2025-04-28T12:00:00", value: 228.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 227.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 229.8 },
+                        ],
+                        amperage1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 10.2 },
+                            { timestamp: "2025-04-28T09:00:00", value: 11.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 10.8 },
+                            { timestamp: "2025-04-28T11:00:00", value: 12.1 },
+                            { timestamp: "2025-04-28T12:00:00", value: 11.5 },
+                            { timestamp: "2025-04-28T13:00:00", value: 10.9 },
+                            { timestamp: "2025-04-28T14:00:00", value: 11.3 },
+                        ],
+                        amperage2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 10.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 10.8 },
+                            { timestamp: "2025-04-28T10:00:00", value: 10.6 },
+                            { timestamp: "2025-04-28T11:00:00", value: 11.9 },
+                            { timestamp: "2025-04-28T12:00:00", value: 11.3 },
+                            { timestamp: "2025-04-28T13:00:00", value: 10.7 },
+                            { timestamp: "2025-04-28T14:00:00", value: 11.1 },
+                        ],
+                        amperage3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 10.4 },
+                            { timestamp: "2025-04-28T09:00:00", value: 11.2 },
+                            { timestamp: "2025-04-28T10:00:00", value: 11.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 12.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 11.7 },
+                            { timestamp: "2025-04-28T13:00:00", value: 11.1 },
+                            { timestamp: "2025-04-28T14:00:00", value: 11.5 },
+                        ],
+                        amperage4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 9.8 },
+                            { timestamp: "2025-04-28T09:00:00", value: 10.6 },
+                            { timestamp: "2025-04-28T10:00:00", value: 10.4 },
+                            { timestamp: "2025-04-28T11:00:00", value: 11.7 },
+                            { timestamp: "2025-04-28T12:00:00", value: 11.1 },
+                            { timestamp: "2025-04-28T13:00:00", value: 10.5 },
+                            { timestamp: "2025-04-28T14:00:00", value: 10.9 },
+                        ],
+                        power1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2346.1 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2543.2 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2480.8 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2807.2 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2646.5 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2492.1 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2616.5 },
+                        ],
+                        power2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2300.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2500.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2450.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2750.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2600.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2450.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2550.0 },
+                        ],
+                        power3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2350.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2550.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2500.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2800.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2650.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2500.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2600.0 },
+                        ],
+                        power4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2280.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2480.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2420.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2700.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2550.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2400.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2500.0 },
+                        ],
+                        energy: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2.35 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2.54 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2.48 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2.81 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2.65 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2.49 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2.62 },
+                        ],
+                        frequency1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T11:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.2 },
+                            { timestamp: "2025-04-28T14:00:00", value: 50.0 },
+                        ],
+                        frequency2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.7 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T14:00:00", value: 49.9 },
+                        ],
+                        frequency3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T09:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.2 },
+                            { timestamp: "2025-04-28T11:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.3 },
+                            { timestamp: "2025-04-28T14:00:00", value: 50.1 },
+                        ],
+                        frequency4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.7 },
+                            { timestamp: "2025-04-28T10:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T11:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.6 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 49.8 },
+                        ],
+                    },
+                },
+                {
+                    id: "meter2",
+                    name: "Meter 2",
+                    label: "Data Center",
+                    data: {
+                        voltage1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 229.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 230.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 228.7 },
+                            { timestamp: "2025-04-28T11:00:00", value: 231.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 229.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 227.8 },
+                            { timestamp: "2025-04-28T14:00:00", value: 230.2 },
+                        ],
+                        voltage2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 228.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 229.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 227.7 },
+                            { timestamp: "2025-04-28T11:00:00", value: 230.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 228.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 226.8 },
+                            { timestamp: "2025-04-28T14:00:00", value: 229.2 },
+                        ],
+                        voltage3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 230.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 231.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 229.7 },
+                            { timestamp: "2025-04-28T11:00:00", value: 232.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 230.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 228.8 },
+                            { timestamp: "2025-04-28T14:00:00", value: 231.2 },
+                        ],
+                        voltage4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 227.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 228.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 226.7 },
+                            { timestamp: "2025-04-28T11:00:00", value: 229.3 },
+                            { timestamp: "2025-04-28T12:00:00", value: 227.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 225.8 },
+                            { timestamp: "2025-04-28T14:00:00", value: 228.2 },
+                        ],
+                        amperage1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 12.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 12.5 },
+                            { timestamp: "2025-04-28T10:00:00", value: 12.2 },
+                            { timestamp: "2025-04-28T11:00:00", value: 13.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 12.7 },
+                            { timestamp: "2025-04-28T13:00:00", value: 12.3 },
+                            { timestamp: "2025-04-28T14:00:00", value: 12.8 },
+                        ],
+                        amperage2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 11.8 },
+                            { timestamp: "2025-04-28T09:00:00", value: 12.3 },
+                            { timestamp: "2025-04-28T10:00:00", value: 12.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 12.8 },
+                            { timestamp: "2025-04-28T12:00:00", value: 12.5 },
+                            { timestamp: "2025-04-28T13:00:00", value: 12.1 },
+                            { timestamp: "2025-04-28T14:00:00", value: 12.6 },
+                        ],
+                        amperage3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 12.2 },
+                            { timestamp: "2025-04-28T09:00:00", value: 12.7 },
+                            { timestamp: "2025-04-28T10:00:00", value: 12.4 },
+                            { timestamp: "2025-04-28T11:00:00", value: 13.2 },
+                            { timestamp: "2025-04-28T12:00:00", value: 12.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 12.5 },
+                            { timestamp: "2025-04-28T14:00:00", value: 13.0 },
+                        ],
+                        amperage4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 11.6 },
+                            { timestamp: "2025-04-28T09:00:00", value: 12.1 },
+                            { timestamp: "2025-04-28T10:00:00", value: 11.8 },
+                            { timestamp: "2025-04-28T11:00:00", value: 12.6 },
+                            { timestamp: "2025-04-28T12:00:00", value: 12.3 },
+                            { timestamp: "2025-04-28T13:00:00", value: 11.9 },
+                            { timestamp: "2025-04-28T14:00:00", value: 12.4 },
+                        ],
+                        power1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2750.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2875.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2800.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 3000.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2900.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2825.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2950.0 },
+                        ],
+                        power2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2700.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2825.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2750.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2950.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2850.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2775.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2900.0 },
+                        ],
+                        power3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2800.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2925.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2850.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 3050.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2950.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2875.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 3000.0 },
+                        ],
+                        power4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 2650.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 2775.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 2700.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 2900.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 2800.0 },
+                            { timestamp: "2025-04-28T13:00:00", value: 2725.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 2850.0 },
+                        ],
+                        energy: [
+                            { timestamp: "2025-04-28T08:00:00", value: 3.10 },
+                            { timestamp: "2025-04-28T09:00:00", value: 3.25 },
+                            { timestamp: "2025-04-28T10:00:00", value: 3.15 },
+                            { timestamp: "2025-04-28T11:00:00", value: 3.40 },
+                            { timestamp: "2025-04-28T12:00:00", value: 3.30 },
+                            { timestamp: "2025-04-28T13:00:00", value: 3.20 },
+                            { timestamp: "2025-04-28T14:00:00", value: 3.35 },
+                        ],
+                        frequency1: [
+                            { timestamp: "2025-04-28T08:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T11:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.2 },
+                            { timestamp: "2025-04-28T14:00:00", value: 50.0 },
+                        ],
+                        frequency2: [
+                            { timestamp: "2025-04-28T08:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T11:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.7 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T14:00:00", value: 49.9 },
+                        ],
+                        frequency3: [
+                            { timestamp: "2025-04-28T08:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T09:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T10:00:00", value: 50.2 },
+                            { timestamp: "2025-04-28T11:00:00", value: 50.1 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.3 },
+                            { timestamp: "2025-04-28T14:00:00", value: 50.1 },
+                        ],
+                        frequency4: [
+                            { timestamp: "2025-04-28T08:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T09:00:00", value: 49.7 },
+                            { timestamp: "2025-04-28T10:00:00", value: 49.9 },
+                            { timestamp: "2025-04-28T11:00:00", value: 49.8 },
+                            { timestamp: "2025-04-28T12:00:00", value: 49.6 },
+                            { timestamp: "2025-04-28T13:00:00", value: 50.0 },
+                            { timestamp: "2025-04-28T14:00:00", value: 49.8 },
+                        ],
+                    },
+                },
+            ],
+        };
+
+        // Get Meter ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const meterId = urlParams.get('meterId');
+        const meter = sampleData.energyMeters.find(m => m.id === meterId);
+
+        // Update Page Title
+        if (meter) {
+            document.getElementById('meterTitle').textContent = `${meter.name} - ${meter.label} Details`;
+        } else {
+            document.getElementById('meterTitle').textContent = 'Meter Not Found';
+            document.querySelectorAll('.widget').forEach(widget => widget.style.display = 'none');
+        }
+
+        // Initialize Time-Series Chart for Comparing Four Types
+        function initTimeSeriesChart(canvasId, title, metric, unit, type = 'line', stacked = false) {
+            if (!meter || !meter.data[`${metric}1`]) {
+                document.getElementById(`${metric}Widget`).style.display = 'none';
+                return;
+            }
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const datasets = [1, 2, 3, 4].map(i => ({
+                label: `${metric.charAt(0).toUpperCase() + metric.slice(1)} ${i}`,
+                data: meter.data[`${metric}${i}`].map(d => d.value),
+                borderColor: i === 1 ? '#2196f3' : i === 2 ? '#4caf50' : i === 3 ? '#ff9800' : '#f44336',
+                backgroundColor: type === 'bar' ? (i === 1 ? 'rgba(33, 150, 243, 0.4)' : i === 2 ? 'rgba(76, 175, 80, 0.4)' : i === 3 ? 'rgba(255, 152, 0, 0.4)' : 'rgba(244, 67, 54, 0.4)') : (i === 1 ? '#2196f3' : i === 2 ? '#4caf50' : i === 3 ? '#ff9800' : '#f44336'),
+                fill: type === 'line' ? false : true,
+                tension: type === 'line' ? 0.4 : 0,
+            }));
+            new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: meter.data[`${metric}1`].map(d => new Date(d.timestamp).toLocaleTimeString()),
+                    datasets: datasets,
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            stacked: stacked && type === 'bar',
+                            title: {
+                                display: true,
+                                text: unit,
+                            },
+                        },
+                        x: {
+                            stacked: stacked && type === 'bar',
+                            title: {
+                                display: true,
+                                text: 'Time',
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                        },
+                    },
+                },
+            });
+        }
+
+        // Initialize Pie Chart for Metric Distribution
+        function initMetricPieChart(canvasId, metric, unit, widgetId) {
+            if (!meter || !meter.data[`${metric}1`]) {
+                document.getElementById(widgetId).style.display = 'none';
+                return;
+            }
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const averages = [1, 2, 3, 4].map(i => {
+                const data = meter.data[`${metric}${i}`];
+                return data.reduce((sum, d) => sum + d.value, 0) / data.length;
+            });
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [1, 2, 3, 4].map(i => `${metric.charAt(0).toUpperCase() + metric.slice(1)} ${i}`),
+                    datasets: [{
+                        data: averages,
+                        backgroundColor: ['#2196f3', '#4caf50', '#ff9800', '#f44336'],
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(2);
+                                    return `${context.label}: ${value.toFixed(2)} ${unit} (${percentage}%)`;
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Initialize Energy Pie Chart
+        function initEnergyPieChart() {
+            if (!meter) return;
+            const ctx = document.getElementById('energyPieChart').getContext('2d');
+            const meterEnergy = meter.data.energy.reduce((sum, d) => sum + d.value, 0);
+            const totalEnergy = sampleData.energyMeters.reduce((sum, m) => sum + m.data.energy.reduce((s, d) => s + d.value, 0), 0);
+            const otherEnergy = totalEnergy - meterEnergy;
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [meter.label, 'Other Meters'],
+                    datasets: [{
+                        data: [meterEnergy, otherEnergy],
+                        backgroundColor: [meter.id === 'meter1' ? '#2196f3' : '#4caf50', '#d3d3d3'],
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(2);
+                                    return `${context.label}: ${value.toFixed(2)} kWh (${percentage}%)`;
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Dark Mode Toggle
+        document.getElementById('darkModeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            document.querySelectorAll('.widget').forEach(widget => widget.classList.toggle('dark-mode'));
+        });
+
+        // Initialize Charts
+        if (meter) {
+            initTimeSeriesChart('voltageChart', 'Voltage Comparison (Line)', 'voltage', 'V', 'line');
+            initTimeSeriesChart('powerChart', 'Power Comparison (Bar)', 'power', 'W', 'bar');
+            initTimeSeriesChart('frequencyChart', 'Frequency Comparison (Stacked Bar)', 'frequency', 'Hz', 'bar', true);
+            initTimeSeriesChart('amperageChart', 'Amperage Comparison (Line)', 'amperage', 'A', 'line');
+            initMetricPieChart('voltagePieChart', 'voltage', 'V', 'voltagePieWidget');
+            initMetricPieChart('powerPieChart', 'power', 'W', 'powerPieWidget');
+            initMetricPieChart('frequencyPieChart', 'frequency', 'Hz', 'frequencyPieWidget');
+            initMetricPieChart('amperagePieChart', 'amperage', 'A', 'amperagePieWidget');
+            initEnergyPieChart();
+        }
+
+        // Real-Time Updates
+        let realTimeUpdatesInterval = setInterval(() => {
+            if (!meter) return;
+            const now = new Date();
+            const metrics = ['voltage', 'amperage', 'power', 'frequency'];
+            metrics.forEach(metric => {
+                for (let i = 1; i <= 4; i++) {
+                    const key = `${metric}${i}`;
+                    if (meter.data[key]) {
+                        let value;
+                        if (metric === 'voltage') value = 228 + Math.random() * 4;
+                        else if (metric === 'amperage') value = 10 + Math.random() * 3;
+                        else if (metric === 'power') value = 2300 + Math.random() * 700;
+                        else if (metric === 'frequency') value = 49.8 + Math.random() * 0.4;
+                        meter.data[key].push({ timestamp: now.toISOString(), value: Number(value.toFixed(2)) });
+                        if (meter.data[key].length > 7) meter.data[key].shift();
+                    }
+                }
+            });
+            if (meter.data.energy) {
+                meter.data.energy.push({ timestamp: now.toISOString(), value: Number((2.3 + Math.random() * 1).toFixed(2)) });
+                if (meter.data.energy.length > 7) meter.data.energy.shift();
+            }
+            // Re-initialize charts to reflect updated data
+            initTimeSeriesChart('voltageChart', 'Voltage Comparison (Line)', 'voltage', 'V', 'line');
+            initTimeSeriesChart('powerChart', 'Power Comparison (Bar)', 'power', 'W', 'bar');
+            initTimeSeriesChart('frequencyChart', 'Frequency Comparison (Stacked Bar)', 'frequency', 'Hz', 'bar', true);
+            initTimeSeriesChart('amperageChart', 'Amperage Comparison (Line)', 'amperage', 'A', 'line');
+            initMetricPieChart('voltagePieChart', 'voltage', 'V', 'voltagePieWidget');
+            initMetricPieChart('powerPieChart', 'power', 'W', 'powerPieWidget');
+            initMetricPieChart('frequencyPieChart', 'frequency', 'Hz', 'frequencyPieWidget');
+            initMetricPieChart('amperagePieChart', 'amperage', 'A', 'amperagePieWidget');
+            initEnergyPieChart();
+        }, 30000);
+    </script>
+</body>
+</html>
